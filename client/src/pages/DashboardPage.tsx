@@ -18,6 +18,27 @@ const DashboardPage = () => {
   const [voteStatus, setVoteStatus] = useState<Record<string, string>>({});
   const user = getAuthUser();
   const [welcomeMessage, setWelcomeMessage] = useState('');
+  const priceMeta: Record<
+    string,
+    { name: string; logo: string }
+  > = {
+    BTC: {
+      name: 'Bitcoin',
+      logo: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png'
+    },
+    ETH: {
+      name: 'Ethereum',
+      logo: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
+    },
+    SOL: {
+      name: 'Solana',
+      logo: 'https://assets.coingecko.com/coins/images/4128/small/solana.png'
+    },
+    USDT: {
+      name: 'Tether',
+      logo: 'https://assets.coingecko.com/coins/images/325/small/Tether.png'
+    }
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -90,6 +111,21 @@ const DashboardPage = () => {
     return true;
   });
 
+  const formatPrice = (value: number | null) => {
+    if (value === null) return '—';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      maximumFractionDigits: value >= 1 ? 2 : 4
+    }).format(value);
+  };
+
+  const formatChange = (value: number | null) => {
+    if (value === null) return '—';
+    const sign = value > 0 ? '+' : '';
+    return `${sign}${value.toFixed(2)}%`;
+  };
+
   return (
     <section className="page">
       <div className="page-header">
@@ -116,16 +152,37 @@ const DashboardPage = () => {
         <div className="dashboard-grid">
           <div className="card">
             <h2>Prices</h2>
-            <ul>
-              {(filteredPrices || []).map((item, index) => (
-                <li key={`${item.symbol}-${index}`}>
-                  <strong>{item.symbol}</strong> ${item.price ?? 'N/A'}
-                  {item.change24h !== null && (
-                    <span> ({item.change24h.toFixed(2)}%)</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+            <div className="prices-grid">
+              {(filteredPrices || []).map((item, index) => {
+                const meta = priceMeta[item.symbol] || { name: item.symbol, logo: '' };
+                const changeClass =
+                  item.change24h === null
+                    ? 'neutral'
+                    : item.change24h >= 0
+                    ? 'positive'
+                    : 'negative';
+
+                return (
+                  <div className="price-card" key={`${item.symbol}-${index}`}>
+                    <div className="price-card-top">
+                      {meta.logo ? (
+                        <img className="price-logo" src={meta.logo} alt={meta.name} />
+                      ) : (
+                        <div className="price-logo placeholder">{item.symbol}</div>
+                      )}
+                      <div>
+                        <div className="price-name">{meta.name}</div>
+                        <div className="price-symbol">{item.symbol}</div>
+                      </div>
+                    </div>
+                    <div className="price-value">{formatPrice(item.price)}</div>
+                    <div className={`price-change ${changeClass}`}>
+                      {formatChange(item.change24h)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <div className="vote-actions">
               <button className="secondary" onClick={() => handleVote('prices', 'up')}>
                 Helpful
