@@ -6,7 +6,8 @@ import {
 import { getDailyInsight, type DailyInsight } from '../services/insight.service';
 import { submitVote } from '../services/vote.service';
 import { fetchOnboardingStatus } from '../services/onboarding.service';
-import { clearNewUserFlag, getAuthUser, isNewUser, logoutUser } from '../services/auth.service';
+import { clearNewUserFlag, isNewUser } from '../services/auth.service';
+import { useAuth } from '../hooks/useAuth';
 import type { OnboardingAnswers } from '../types/onboarding';
 
 const DashboardPage = () => {
@@ -16,7 +17,7 @@ const DashboardPage = () => {
   const [insightError, setInsightError] = useState('');
   const [preferences, setPreferences] = useState<OnboardingAnswers | null>(null);
   const [voteStatus, setVoteStatus] = useState<Record<string, string>>({});
-  const user = getAuthUser();
+  const { user, logout } = useAuth();
   const [welcomeMessage, setWelcomeMessage] = useState('');
   const priceMeta: Record<
     string,
@@ -194,7 +195,7 @@ const DashboardPage = () => {
         <button
           className="secondary"
           onClick={() => {
-            logoutUser();
+            logout();
             window.location.href = '/login';
           }}
         >
