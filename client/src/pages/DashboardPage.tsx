@@ -110,6 +110,8 @@ const DashboardPage = () => {
     if (interest === 'nft') return item.symbol === 'ETH';
     return true;
   });
+  const visiblePrices =
+    filteredPrices && filteredPrices.length > 0 ? filteredPrices : data?.prices || [];
 
   const formatPrice = (value: number | null) => {
     if (value === null) return '—';
@@ -153,7 +155,7 @@ const DashboardPage = () => {
           <div className="card">
             <h2>Prices</h2>
             <div className="prices-grid">
-              {(filteredPrices || []).map((item, index) => {
+              {visiblePrices.map((item, index) => {
                 const meta = priceMeta[item.symbol] || { name: item.symbol, logo: '' };
                 const changeClass =
                   item.change24h === null
