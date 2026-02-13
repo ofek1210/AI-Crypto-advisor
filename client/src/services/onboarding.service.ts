@@ -4,9 +4,12 @@ import { getAuthToken } from './auth.service';
 const COMPLETE_KEY = 'onboardingComplete';
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
-const authHeaders = () => {
+const authHeaders = (): HeadersInit => {
   const token = getAuthToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  if (!token) {
+    return {};
+  }
+  return { Authorization: `Bearer ${token}` };
 };
 
 export const setOnboardingComplete = (value: boolean) => {
