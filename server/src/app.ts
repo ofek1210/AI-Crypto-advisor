@@ -11,8 +11,29 @@ import { errorHandler } from './middlewares/errorHandler.js';
 
 const app = express();
 
+const parseOrigins = (value?: string) =>
+  (value || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+    .map((origin) => origin.replace(/^['"]|['"]$/g, ''));
+
+const allowedOrigins = parseOrigins(env.CORS_ORIGIN);
+
 app.use(helmet());
-app.use(cors({ origin: env.CORS_ORIGIN, credentials: true }));
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.length === 0) {
+        return callback(null, true);
+      }
+
+      const isAllowed = allowedOrigins.includes(origin);
+      return callback(null, isAllowed);
+    },
+    credentials: true
+  })
+);
 app.use(express.json());
 app.use(morgan('dev'));
 
