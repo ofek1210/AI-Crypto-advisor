@@ -73,7 +73,6 @@ const DashboardPage = () => {
     };
 
     load();
-    loadInsight();
     loadPrefs();
   }, []);
 
@@ -85,6 +84,24 @@ const DashboardPage = () => {
       clearNewUserFlag();
     }
   }, [user]);
+
+  useEffect(() => {
+    const loadInsight = async () => {
+      try {
+        const result = await getDailyInsight({
+          assetInterests: preferences?.assetInterests,
+          investorType: preferences?.investorType,
+          contentType: preferences?.contentType
+        });
+        setInsight(result);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to load AI insight.';
+        setInsightError(message);
+      }
+    };
+
+    loadInsight();
+  }, [preferences]);
 
   const handleVote = async (source: 'insight' | 'news' | 'meme' | 'prices', value: 'up' | 'down') => {
     setVoteStatus((prev) => ({ ...prev, [source]: '' }));
@@ -113,6 +130,25 @@ const DashboardPage = () => {
   const visiblePrices =
     filteredPrices && filteredPrices.length > 0 ? filteredPrices : data?.prices || [];
 
+  const featuredSymbol =
+    preferences?.assetInterests === 'btc'
+      ? 'BTC'
+      : preferences?.assetInterests === 'eth'
+      ? 'ETH'
+      : preferences?.assetInterests === 'alts'
+      ? 'SOL'
+      : preferences?.assetInterests === 'stable'
+      ? 'USDT'
+      : null;
+
+  const featuredPrice = featuredSymbol
+    ? visiblePrices.find((item) => item.symbol === featuredSymbol)
+    : undefined;
+
+  const remainingPrices = featuredPrice
+    ? visiblePrices.filter((item) => item.symbol !== featuredPrice.symbol)
+    : visiblePrices;
+
   const formatPrice = (value: number | null) => {
     if (value === null) return '—';
     return new Intl.NumberFormat('en-US', {
@@ -127,6 +163,36 @@ const DashboardPage = () => {
     const sign = value > 0 ? '+' : '';
     return `${sign}${value.toFixed(2)}%`;
   };
+
+  const buildNewsFilter = () => {
+    const keywords: string[] = [];
+    if (preferences?.assetInterests === 'btc') keywords.push('bitcoin', 'btc');
+    if (preferences?.assetInterests === 'eth') keywords.push('ethereum', 'eth');
+    if (preferences?.assetInterests === 'alts') keywords.push('altcoin', 'alts', 'solana', 'sol');
+    if (preferences?.assetInterests === 'stable') keywords.push('stable', 'usdt', 'tether');
+    if (preferences?.assetInterests === 'nft') keywords.push('nft', 'opensea');
+
+    if (preferences?.investorType === 'day_trader') keywords.push('trader', 'trading');
+    if (preferences?.investorType === 'hodler') keywords.push('hold', 'hodl');
+    if (preferences?.investorType === 'nft_collector') keywords.push('nft');
+    if (preferences?.investorType === 'defi') keywords.push('defi');
+
+    if (preferences?.contentType === 'charts') keywords.push('chart', 'technical');
+    if (preferences?.contentType === 'social') keywords.push('twitter', 'x', 'reddit');
+    if (preferences?.contentType === 'market_news') keywords.push('market', 'macro');
+    if (preferences?.contentType === 'fun') keywords.push('meme');
+
+    return keywords;
+  };
+
+  const newsKeywords = buildNewsFilter();
+  const filteredNews =
+    newsKeywords.length === 0
+      ? data?.news || []
+      : (data?.news || []).filter((item) =>
+          newsKeywords.some((keyword) => item.title.toLowerCase().includes(keyword))
+        );
+  const visibleNews = filteredNews.length > 0 ? filteredNews : data?.news || [];
 
   return (
     <section className="page">
@@ -154,8 +220,36 @@ const DashboardPage = () => {
         <div className="dashboard-grid">
           <div className="card">
             <h2>Prices</h2>
+            {featuredPrice && (
+              <div className="price-featured">
+                <div className="section-title">Featured Coin</div>
+                <div className="price-card-top">
+                  <img
+                    className="price-logo"
+                    src={priceMeta[featuredPrice.symbol]?.logo}
+                    alt={priceMeta[featuredPrice.symbol]?.name}
+                  />
+                  <div>
+                    <div className="price-name">{priceMeta[featuredPrice.symbol]?.name}</div>
+                    <div className="price-symbol">{featuredPrice.symbol}</div>
+                  </div>
+                </div>
+                <div className="price-value">{formatPrice(featuredPrice.price)}</div>
+                <div
+                  className={`price-change ${
+                    featuredPrice.change24h === null
+                      ? 'neutral'
+                      : featuredPrice.change24h >= 0
+                      ? 'positive'
+                      : 'negative'
+                  }`}
+                >
+                  {formatChange(featuredPrice.change24h)}
+                </div>
+              </div>
+            )}
             <div className="prices-grid">
-              {visiblePrices.map((item, index) => {
+              {remainingPrices.map((item, index) => {
                 const meta = priceMeta[item.symbol] || { name: item.symbol, logo: '' };
                 const changeClass =
                   item.change24h === null
@@ -198,11 +292,11 @@ const DashboardPage = () => {
 
           <div className="card">
             <h2>News</h2>
-            {data.news.length === 0 ? (
+            {visibleNews.length === 0 ? (
               <p>No news available right now.</p>
             ) : (
               <ul>
-                {data.news.map((item, index) => (
+                {visibleNews.map((item, index) => (
                   <li key={`${item.url ?? 'news'}-${index}`}>
                     <a href={item.url} target="_blank" rel="noreferrer">
                       {item.title}

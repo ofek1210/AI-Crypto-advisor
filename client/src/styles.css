@@ -214,6 +214,25 @@ body {
   gap: 8px;
 }
 
+.price-featured {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 16px;
+  border: 1px solid #cbd5f5;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 16px;
+  box-shadow: 0 8px 18px rgba(37, 99, 235, 0.08);
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #64748b;
+}
+
 .price-card-top {
   display: flex;
   align-items: center;
