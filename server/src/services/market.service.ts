@@ -34,7 +34,7 @@ export const getPrices = async () => {
   const cached = cache.get('prices');
   if (cached) return cached;
 
-  const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana&vs_currencies=usd&include_24hr_change=true`;
+  const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
   const data = await fetchJson<PriceResponse>(url);
 
   const result = [
@@ -52,6 +52,11 @@ export const getPrices = async () => {
       symbol: 'SOL',
       price: data.solana?.usd ?? null,
       change24h: data.solana?.usd_24h_change ?? null
+    },
+    {
+      symbol: 'USDT',
+      price: data.tether?.usd ?? null,
+      change24h: data.tether?.usd_24h_change ?? null
     }
   ];
 

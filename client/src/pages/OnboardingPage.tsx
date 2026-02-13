@@ -1,7 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { OnboardingAnswers, OnboardingQuestion } from '../types/onboarding';
-import { saveOnboarding } from '../services/onboarding.service';
+import {
+  fetchOnboardingStatus,
+  saveOnboarding,
+  setOnboardingComplete
+} from '../services/onboarding.service';
 
 const OnboardingPage = () => {
   const navigate = useNavigate();
@@ -78,6 +82,18 @@ const OnboardingPage = () => {
     await saveOnboarding(payload);
     setSubmitted(true);
   };
+
+  useEffect(() => {
+    const load = async () => {
+      const status = await fetchOnboardingStatus();
+      if (status.completed) {
+        setOnboardingComplete(true);
+        navigate('/dashboard');
+      }
+    };
+
+    load().catch(() => {});
+  }, [navigate]);
 
   if (submitted) {
     return (

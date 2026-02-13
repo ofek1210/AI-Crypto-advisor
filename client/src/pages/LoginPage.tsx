@@ -1,7 +1,10 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginUser } from '../services/auth.service';
-import { isOnboardingComplete } from '../services/onboarding.service';
+import {
+  fetchOnboardingStatus,
+  setOnboardingComplete
+} from '../services/onboarding.service';
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -15,9 +18,12 @@ const LoginPage = () => {
 
     try {
       await loginUser({ email, password });
-      if (isOnboardingComplete()) {
-        navigate('/dashboard');
-      } else {
+      try {
+        const status = await fetchOnboardingStatus();
+        setOnboardingComplete(status.completed);
+        navigate(status.completed ? '/dashboard' : '/onboarding');
+      } catch {
+        setOnboardingComplete(false);
         navigate('/onboarding');
       }
     } catch (err) {

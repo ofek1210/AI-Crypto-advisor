@@ -9,27 +9,56 @@ export type LoginInput = {
   password: string;
 };
 
-const REGISTERED_KEY = 'mockUser';
+type AuthResponse = {
+  token: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
+};
+
 const TOKEN_KEY = 'authToken';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+
+const saveToken = (token: string) => {
+  localStorage.setItem(TOKEN_KEY, token);
+};
 
 export const registerUser = async (input: RegisterInput) => {
-  localStorage.setItem(REGISTERED_KEY, JSON.stringify(input));
-  return { ok: true };
+  const res = await fetch(`${API_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+
+  const payload = (await res.json()) as AuthResponse | { message?: string };
+
+  if (!res.ok) {
+    const message = 'message' in payload ? payload.message : 'Signup failed';
+    throw new Error(message || 'Signup failed');
+  }
+
+  return payload as AuthResponse;
 };
 
 export const loginUser = async (input: LoginInput) => {
-  const raw = localStorage.getItem(REGISTERED_KEY);
-  if (!raw) {
-    throw new Error('No registered user found. Please sign up first.');
+  const res = await fetch(`${API_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input)
+  });
+
+  const payload = (await res.json()) as AuthResponse | { message?: string };
+
+  if (!res.ok) {
+    const message = 'message' in payload ? payload.message : 'Login failed';
+    throw new Error(message || 'Login failed');
   }
 
-  const stored = JSON.parse(raw) as RegisterInput;
-  if (stored.email !== input.email || stored.password !== input.password) {
-    throw new Error('Invalid email or password.');
-  }
-
-  localStorage.setItem(TOKEN_KEY, 'mock-token');
-  return { ok: true };
+  const data = payload as AuthResponse;
+  saveToken(data.token);
+  return data;
 };
 
 export const logoutUser = () => {
@@ -37,3 +66,5 @@ export const logoutUser = () => {
 };
 
 export const isLoggedIn = () => Boolean(localStorage.getItem(TOKEN_KEY));
+
+export const getAuthToken = () => localStorage.getItem(TOKEN_KEY);

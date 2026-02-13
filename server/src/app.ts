@@ -7,6 +7,7 @@ import authRoutes from './routes/auth.routes.js';
 import dashboardRoutes from './routes/dashboard.routes.js';
 import insightRoutes from './routes/insight.routes.js';
 import voteRoutes from './routes/vote.routes.js';
+import onboardingRoutes from './routes/onboarding.routes.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 
 const app = express();
@@ -45,6 +46,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/insight', insightRoutes);
 app.use('/api/votes', voteRoutes);
+app.use('/api/onboarding', onboardingRoutes);
 
 app.use(errorHandler);
 

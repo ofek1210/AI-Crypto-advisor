@@ -5,13 +5,16 @@ import {
 } from '../services/dashboard.service';
 import { getDailyInsight, type DailyInsight } from '../services/insight.service';
 import { submitVote } from '../services/vote.service';
+import { fetchOnboardingStatus } from '../services/onboarding.service';
+import type { OnboardingAnswers } from '../types/onboarding';
 
 const DashboardPage = () => {
   const [data, setData] = useState<DashboardSummary | null>(null);
   const [error, setError] = useState('');
   const [insight, setInsight] = useState<DailyInsight | null>(null);
   const [insightError, setInsightError] = useState('');
-  const [voteStatus, setVoteStatus] = useState('');
+  const [preferences, setPreferences] = useState<OnboardingAnswers | null>(null);
+  const [voteStatus, setVoteStatus] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const load = async () => {
@@ -34,20 +37,53 @@ const DashboardPage = () => {
       }
     };
 
+    const loadPrefs = async () => {
+      try {
+        const status = await fetchOnboardingStatus();
+        if (status.completed && status.preferences) {
+          setPreferences(status.preferences);
+        }
+      } catch {
+        // ignore preferences fetch errors
+      }
+    };
+
     load();
     loadInsight();
+    loadPrefs();
   }, []);
 
-  const handleVote = async (value: 'up' | 'down') => {
-    setVoteStatus('');
+  const handleVote = async (source: 'insight' | 'news' | 'meme' | 'prices', value: 'up' | 'down') => {
+    setVoteStatus((prev) => ({ ...prev, [source]: '' }));
     try {
-      await submitVote({ source: 'insight', value });
-      setVoteStatus(value === 'up' ? 'Thanks for your feedback!' : 'Got it. We will improve.');
+      await submitVote({ source, value });
+      setVoteStatus((prev) => ({
+        ...prev,
+        [source]: value === 'up' ? 'Thanks for your feedback!' : 'Got it. We will improve.'
+      }));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Vote failed.';
-      setVoteStatus(message);
+      setVoteStatus((prev) => ({ ...prev, [source]: message }));
     }
   };
+
+  const contentType = preferences?.contentType || 'all';
+  const showPrices = contentType === 'charts' || contentType === 'all';
+  const showNews =
+    contentType === 'market_news' || contentType === 'social' || contentType === 'all';
+  const showMeme = contentType === 'fun' || contentType === 'all';
+  const showInsight = contentType !== 'fun';
+
+  const filteredPrices = data?.prices.filter((item) => {
+    const interest = preferences?.assetInterests;
+    if (!interest) return true;
+    if (interest === 'btc') return item.symbol === 'BTC';
+    if (interest === 'eth') return item.symbol === 'ETH';
+    if (interest === 'alts') return item.symbol === 'SOL';
+    if (interest === 'stable') return item.symbol === 'USDT';
+    if (interest === 'nft') return item.symbol === 'ETH';
+    return true;
+  });
 
   return (
     <section className="page">
@@ -60,59 +96,94 @@ const DashboardPage = () => {
 
       {data && (
         <div className="dashboard-grid">
-          <div className="card">
-            <h2>Prices</h2>
-            <ul>
-              {data.prices.map((item, index) => (
-                <li key={`${item.symbol}-${index}`}>
-                  <strong>{item.symbol}</strong> ${item.price ?? 'N/A'}
-                  {item.change24h !== null && (
-                    <span> ({item.change24h.toFixed(2)}%)</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          <div className="card">
-            <h2>News</h2>
-            {data.news.length === 0 ? (
-              <p>No news available. Add CryptoPanic token to enable.</p>
-            ) : (
+          {showPrices && (
+            <div className="card">
+              <h2>Prices</h2>
               <ul>
-                {data.news.map((item, index) => (
-                  <li key={`${item.url ?? 'news'}-${index}`}>
-                    <a href={item.url} target="_blank" rel="noreferrer">
-                      {item.title}
-                    </a>
-                    <div className="muted">{item.source}</div>
+                {(filteredPrices || []).map((item, index) => (
+                  <li key={`${item.symbol}-${index}`}>
+                    <strong>{item.symbol}</strong> ${item.price ?? 'N/A'}
+                    {item.change24h !== null && (
+                      <span> ({item.change24h.toFixed(2)}%)</span>
+                    )}
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
-
-          <div className="card">
-            <h2>AI Insight</h2>
-            {insightError && <div className="error">{insightError}</div>}
-            {!insight && !insightError && <p>Loading insight...</p>}
-            {insight && <p>{insight.text}</p>}
-            <div className="vote-actions">
-              <button className="secondary" onClick={() => handleVote('up')}>
-                Helpful
-              </button>
-              <button className="secondary" onClick={() => handleVote('down')}>
-                Not helpful
-              </button>
+              <div className="vote-actions">
+                <button className="secondary" onClick={() => handleVote('prices', 'up')}>
+                  Helpful
+                </button>
+                <button className="secondary" onClick={() => handleVote('prices', 'down')}>
+                  Not helpful
+                </button>
+              </div>
+              {voteStatus.prices && <div className="muted">{voteStatus.prices}</div>}
             </div>
-            {voteStatus && <div className="muted">{voteStatus}</div>}
-          </div>
+          )}
 
-          <div className="card">
-            <h2>Meme</h2>
-            <p>{data.meme.title}</p>
-            <img className="meme" src={data.meme.url} alt={data.meme.title} />
-          </div>
+          {showNews && (
+            <div className="card">
+              <h2>News</h2>
+              {data.news.length === 0 ? (
+                <p>No news available. Add CryptoPanic token to enable.</p>
+              ) : (
+                <ul>
+                  {data.news.map((item, index) => (
+                    <li key={`${item.url ?? 'news'}-${index}`}>
+                      <a href={item.url} target="_blank" rel="noreferrer">
+                        {item.title}
+                      </a>
+                      <div className="muted">{item.source}</div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="vote-actions">
+                <button className="secondary" onClick={() => handleVote('news', 'up')}>
+                  Helpful
+                </button>
+                <button className="secondary" onClick={() => handleVote('news', 'down')}>
+                  Not helpful
+                </button>
+              </div>
+              {voteStatus.news && <div className="muted">{voteStatus.news}</div>}
+            </div>
+          )}
+
+          {showInsight && (
+            <div className="card">
+              <h2>AI Insight</h2>
+              {insightError && <div className="error">{insightError}</div>}
+              {!insight && !insightError && <p>Loading insight...</p>}
+              {insight && <p>{insight.text}</p>}
+              <div className="vote-actions">
+                <button className="secondary" onClick={() => handleVote('insight', 'up')}>
+                  Helpful
+                </button>
+                <button className="secondary" onClick={() => handleVote('insight', 'down')}>
+                  Not helpful
+                </button>
+              </div>
+              {voteStatus.insight && <div className="muted">{voteStatus.insight}</div>}
+            </div>
+          )}
+
+          {showMeme && (
+            <div className="card">
+              <h2>Meme</h2>
+              <p>{data.meme.title}</p>
+              <img className="meme" src={data.meme.url} alt={data.meme.title} />
+              <div className="vote-actions">
+                <button className="secondary" onClick={() => handleVote('meme', 'up')}>
+                  Helpful
+                </button>
+                <button className="secondary" onClick={() => handleVote('meme', 'down')}>
+                  Not helpful
+                </button>
+              </div>
+              {voteStatus.meme && <div className="muted">{voteStatus.meme}</div>}
+            </div>
+          )}
         </div>
       )}
     </section>

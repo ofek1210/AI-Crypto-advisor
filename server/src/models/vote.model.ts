@@ -2,10 +2,11 @@ import mongoose, { Schema, InferSchemaType } from 'mongoose';
 
 const voteSchema = new Schema(
   {
+    user: { type: Schema.Types.ObjectId, ref: 'User', required: true },
     source: {
       type: String,
       required: true,
-      enum: ['insight', 'news', 'meme', 'dashboard']
+      enum: ['insight', 'news', 'meme', 'prices']
     },
     value: {
       type: String,
