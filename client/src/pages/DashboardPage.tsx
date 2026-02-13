@@ -51,16 +51,6 @@ const DashboardPage = () => {
       }
     };
 
-    const loadInsight = async () => {
-      try {
-        const result = await getDailyInsight();
-        setInsight(result);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : 'Failed to load AI insight.';
-        setInsightError(message);
-      }
-    };
-
     const loadPrefs = async () => {
       try {
         const status = await fetchOnboardingStatus();

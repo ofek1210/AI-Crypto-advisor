@@ -7,15 +7,30 @@ export type DailyInsight = {
   source: 'ai' | 'fallback';
 };
 
+export type InsightContext = {
+  assetInterests?: string;
+  investorType?: string;
+  contentType?: string;
+};
+
 const cache = new Cache<DailyInsight>();
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
 
-const buildPrompt = () =>
-  `You are a crypto market assistant. Provide one concise daily insight (max 3 sentences), neutral and not financial advice.`;
+const buildPrompt = (context?: InsightContext) => {
+  const parts = [];
+  if (context?.assetInterests) parts.push(`assets: ${context.assetInterests}`);
+  if (context?.investorType) parts.push(`investor: ${context.investorType}`);
+  if (context?.contentType) parts.push(`content: ${context.contentType}`);
+  const prefs = parts.length ? `User preferences: ${parts.join(', ')}.` : '';
 
-export const getDailyInsight = async (): Promise<DailyInsight> => {
+  return `You are a crypto market assistant. ${prefs} Provide one concise daily insight (max 3 sentences), neutral and not financial advice.`;
+};
+
+export const getDailyInsight = async (context?: InsightContext): Promise<DailyInsight> => {
   const today = new Date().toISOString().slice(0, 10);
-  const cacheKey = `insight:${today}`;
+  const cacheKey = `insight:${today}:${context?.assetInterests || 'any'}:${
+    context?.investorType || 'any'
+  }:${context?.contentType || 'any'}`;
   const cached = cache.get(cacheKey);
   if (cached) return cached;
 
@@ -47,7 +62,7 @@ export const getDailyInsight = async (): Promise<DailyInsight> => {
           },
           {
             role: 'user',
-            content: buildPrompt()
+            content: buildPrompt(context)
           }
         ]
       })
