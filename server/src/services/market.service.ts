@@ -67,7 +67,9 @@ const mapCoinCapPrices = (payload: CoinCapResponse) =>
 
 export const getPrices = async () => {
   const cached = cache.get('prices');
-  if (cached) return cached;
+  if (cached && !(Array.isArray(cached) && cached.length === 0)) {
+    return cached;
+  }
 
   try {
     const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
@@ -111,17 +113,18 @@ export const getPrices = async () => {
       // fall through to last-known or static fallback
     }
 
-    if (lastPrices) {
+    if (lastPrices && lastPrices.length > 0) {
       cache.set('prices', lastPrices, 2 * 60 * 1000);
       return lastPrices;
     }
-    cache.set('prices', lastPrices || [], 2 * 60 * 1000);
-    return [
+    const fallback = [
       { symbol: 'BTC', price: 30000, change24h: 0 },
       { symbol: 'ETH', price: 1800, change24h: 0 },
       { symbol: 'SOL', price: 120, change24h: 0 },
       { symbol: 'USDT', price: 1, change24h: 0 }
     ];
+    cache.set('prices', fallback, 2 * 60 * 1000);
+    return fallback;
   }
 };
 
