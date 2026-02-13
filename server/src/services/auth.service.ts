@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import jwt from 'jsonwebtoken';
+import jwt, { type Secret, type SignOptions } from 'jsonwebtoken';
 import { UserModel } from '../models/user.model.js';
 import { env } from '../config/env.js';
 import { AppError } from '../utils/appError.js';
@@ -13,8 +13,14 @@ export type AuthResult = {
   };
 };
 
-const signToken = (userId: string) =>
-  jwt.sign({ sub: userId }, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN });
+const signToken = (userId: string) => {
+  const secret = env.JWT_SECRET as Secret;
+  const options: SignOptions = {
+    expiresIn: env.JWT_EXPIRES_IN as SignOptions['expiresIn']
+  };
+
+  return jwt.sign({ sub: userId }, secret, options);
+};
 
 export const register = async (params: {
   email: string;
