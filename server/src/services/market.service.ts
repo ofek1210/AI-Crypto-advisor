@@ -94,9 +94,12 @@ const isImageUrl = (url: string) => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url);
 const pickRandom = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
 export const getPrices = async () => {
-  const cached = cache.get('prices');
-  if (cached && !(Array.isArray(cached) && cached.length === 0)) {
-    return cached;
+  const disableCache = env.DISABLE_PRICE_CACHE === 'true';
+  if (!disableCache) {
+    const cached = cache.get('prices');
+    if (cached && !(Array.isArray(cached) && cached.length === 0)) {
+      return cached;
+    }
   }
 
   try {
@@ -136,7 +139,9 @@ export const getPrices = async () => {
     ];
 
     lastPrices = result;
-    cache.set('prices', result, 5 * 60 * 1000);
+    if (!disableCache) {
+      cache.set('prices', result, 5 * 60 * 1000);
+    }
     return result;
   } catch (err) {
     console.error('CoinGecko error:', err);
@@ -145,7 +150,9 @@ export const getPrices = async () => {
       const data = await fetchJson<CoinCapResponse>(url);
       const result = mapCoinCapPrices(data);
       lastPrices = result;
-      cache.set('prices', result, 5 * 60 * 1000);
+      if (!disableCache) {
+        cache.set('prices', result, 5 * 60 * 1000);
+      }
       return result;
     } catch (err2) {
       console.error('CoinCap error:', err2);
@@ -153,7 +160,9 @@ export const getPrices = async () => {
     }
 
     if (lastPrices && lastPrices.length > 0) {
-      cache.set('prices', lastPrices, 2 * 60 * 1000);
+      if (!disableCache) {
+        cache.set('prices', lastPrices, 2 * 60 * 1000);
+      }
       return lastPrices;
     }
     const fallback = [
@@ -162,7 +171,9 @@ export const getPrices = async () => {
       { symbol: 'SOL', price: 120, change24h: 0 },
       { symbol: 'USDT', price: 1, change24h: 0 }
     ];
-    cache.set('prices', fallback, 2 * 60 * 1000);
+    if (!disableCache) {
+      cache.set('prices', fallback, 2 * 60 * 1000);
+    }
     return fallback;
   }
 };

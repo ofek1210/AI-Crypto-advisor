@@ -11,6 +11,7 @@ type Env = {
   CORS_ORIGIN: string;
   CRYPTOPANIC_TOKEN?: string;
   COINGECKO_API_KEY?: string;
+  DISABLE_PRICE_CACHE?: string;
   OPENROUTER_API_KEY?: string;
   OPENROUTER_MODEL?: string;
 };
@@ -34,6 +35,7 @@ export const env: Env = {
   CORS_ORIGIN: process.env.CORS_ORIGIN || 'http://localhost:5173',
   CRYPTOPANIC_TOKEN: process.env.CRYPTOPANIC_TOKEN,
   COINGECKO_API_KEY: process.env.COINGECKO_API_KEY,
+  DISABLE_PRICE_CACHE: process.env.DISABLE_PRICE_CACHE,
   OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
   OPENROUTER_MODEL: process.env.OPENROUTER_MODEL
 };
