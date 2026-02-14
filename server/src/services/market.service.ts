@@ -100,10 +100,17 @@ export const getPrices = async () => {
   }
 
   try {
+    const coingeckoHeaders: Record<string, string> = {
+      Accept: 'application/json',
+      'User-Agent': 'AI-Crypto-Advisor/1.0'
+    };
+    if (env.COINGECKO_API_KEY) {
+      // Support both Demo and Pro keys (CoinGecko accepts one of these)
+      coingeckoHeaders['x-cg-pro-api-key'] = env.COINGECKO_API_KEY;
+      coingeckoHeaders['x-cg-demo-api-key'] = env.COINGECKO_API_KEY;
+    }
     const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
-    const data = await fetchJson<PriceResponse>(url, {
-      headers: env.COINGECKO_API_KEY ? { 'x-cg-pro-api-key': env.COINGECKO_API_KEY } : undefined
-    });
+    const data = await fetchJson<PriceResponse>(url, { headers: coingeckoHeaders });
 
     const result = [
       {
@@ -131,7 +138,8 @@ export const getPrices = async () => {
     lastPrices = result;
     cache.set('prices', result, 5 * 60 * 1000);
     return result;
-  } catch {
+  } catch (err) {
+    console.error('CoinGecko error:', err);
     try {
       const url = `${COINCAP_URL}/assets?ids=bitcoin,ethereum,solana,tether`;
       const data = await fetchJson<CoinCapResponse>(url);
@@ -139,7 +147,8 @@ export const getPrices = async () => {
       lastPrices = result;
       cache.set('prices', result, 5 * 60 * 1000);
       return result;
-    } catch {
+    } catch (err2) {
+      console.error('CoinCap error:', err2);
       // fall through to last-known or static fallback
     }
 
