@@ -28,15 +28,6 @@ type RedditListing = {
   };
 };
 
-type CoinCapResponse = {
-  data: Array<{
-    id: string;
-    symbol: string;
-    priceUsd: string;
-    changePercent24Hr: string;
-  }>;
-};
-
 type NewsItem = {
   title: string;
   url: string;
@@ -45,12 +36,11 @@ type NewsItem = {
 };
 
 const COINGECKO_URL = 'https://api.coingecko.com/api/v3';
-const COINCAP_URL = 'https://api.coincap.io/v2';
 const CRYPTOPANIC_URL = 'https://cryptopanic.com/api/developer/v2/posts/';
 const REDDIT_URL = 'https://www.reddit.com/r/cryptomemes/top.json?limit=30&t=day&raw_json=1';
 
 type PriceItem = { symbol: string; price: number | null; change24h: number | null };
-type PriceSource = 'coingecko' | 'coincap' | 'last_known' | 'fallback' | 'cache';
+type PriceSource = 'coingecko' | 'last_known' | 'fallback' | 'cache';
 export type PriceResult = { items: PriceItem[]; source: PriceSource };
 
 const cache = new Cache<any>();
@@ -80,13 +70,6 @@ const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
   return (await res.json()) as T;
 };
 
-const mapCoinCapPrices = (payload: CoinCapResponse) =>
-  payload.data.map((item) => ({
-    symbol: item.symbol.toUpperCase(),
-    price: Number(item.priceUsd),
-    change24h: Number(item.changePercent24Hr)
-  }));
-
 const sanitizeUrl = (value?: string) => (value ? value.replace(/&amp;/g, '&') : '');
 
 const isAllowedHost = (url: string) =>
@@ -95,6 +78,22 @@ const isAllowedHost = (url: string) =>
 const isImageUrl = (url: string) => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url);
 
 const pickRandom = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)];
+
+const buildCoinGeckoHeaders = () => {
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+    'User-Agent': 'AI-Crypto-Advisor/1.0'
+  };
+  const apiKey = env.COINGECKO_API_KEY?.trim();
+  if (apiKey) {
+    if (apiKey.startsWith('CG-')) {
+      headers['x-cg-demo-api-key'] = apiKey;
+    } else {
+      headers['x-cg-pro-api-key'] = apiKey;
+    }
+  }
+  return headers;
+};
 
 export const getPrices = async (): Promise<PriceResult> => {
   const disableCache = env.DISABLE_PRICE_CACHE === 'true';
@@ -111,15 +110,7 @@ export const getPrices = async (): Promise<PriceResult> => {
   }
 
   try {
-    const coingeckoHeaders: Record<string, string> = {
-      Accept: 'application/json',
-      'User-Agent': 'AI-Crypto-Advisor/1.0'
-    };
-    if (env.COINGECKO_API_KEY) {
-      // Support both Demo and Pro keys (CoinGecko accepts one of these)
-      coingeckoHeaders['x-cg-pro-api-key'] = env.COINGECKO_API_KEY;
-      coingeckoHeaders['x-cg-demo-api-key'] = env.COINGECKO_API_KEY;
-    }
+    const coingeckoHeaders = buildCoinGeckoHeaders();
     const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
     const data = await fetchJson<PriceResponse>(url, { headers: coingeckoHeaders });
 
@@ -154,19 +145,44 @@ export const getPrices = async (): Promise<PriceResult> => {
     return payload;
   } catch (err) {
     console.error('CoinGecko error:', err);
-    try {
-      const url = `${COINCAP_URL}/assets?ids=bitcoin,ethereum,solana,tether`;
-      const data = await fetchJson<CoinCapResponse>(url);
-      const result = mapCoinCapPrices(data);
-      const payload: PriceResult = { items: result, source: 'coincap' };
-      lastPrices = result;
-      if (!disableCache) {
-        cache.set('prices', payload, 5 * 60 * 1000);
+    const apiKey = env.COINGECKO_API_KEY?.trim();
+    if (apiKey) {
+      try {
+        const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
+        const data = await fetchJson<PriceResponse>(url, {
+          headers: { Accept: 'application/json', 'User-Agent': 'AI-Crypto-Advisor/1.0' }
+        });
+        const result: PriceItem[] = [
+          {
+            symbol: 'BTC',
+            price: data.bitcoin?.usd ?? null,
+            change24h: data.bitcoin?.usd_24h_change ?? null
+          },
+          {
+            symbol: 'ETH',
+            price: data.ethereum?.usd ?? null,
+            change24h: data.ethereum?.usd_24h_change ?? null
+          },
+          {
+            symbol: 'SOL',
+            price: data.solana?.usd ?? null,
+            change24h: data.solana?.usd_24h_change ?? null
+          },
+          {
+            symbol: 'USDT',
+            price: data.tether?.usd ?? null,
+            change24h: data.tether?.usd_24h_change ?? null
+          }
+        ];
+        const payload: PriceResult = { items: result, source: 'coingecko' };
+        lastPrices = result;
+        if (!disableCache) {
+          cache.set('prices', payload, 5 * 60 * 1000);
+        }
+        return payload;
+      } catch (retryError) {
+        console.error('CoinGecko retry without key error:', retryError);
       }
-      return payload;
-    } catch (err2) {
-      console.error('CoinCap error:', err2);
-      // fall through to last-known or static fallback
     }
 
     if (lastPrices && lastPrices.length > 0) {
