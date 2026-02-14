@@ -15,6 +15,7 @@ export type InsightContext = {
 
 const cache = new Cache<DailyInsight>();
 const INSIGHT_TTL_MS = 24 * 60 * 60 * 1000;
+const FALLBACK_TTL_MS = 5 * 60 * 1000;
 
 const buildPrompt = (context?: InsightContext) => {
   const parts = [];
@@ -45,11 +46,14 @@ export const getDailyInsight = async (context?: InsightContext): Promise<DailyIn
   const model = env.OPENROUTER_MODEL || 'openai/gpt-4o-mini';
 
   try {
+    const referer = env.CORS_ORIGIN?.split(',')[0]?.trim() || 'http://localhost:5173';
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'HTTP-Referer': referer,
+        'X-Title': 'AI Crypto Advisor'
       },
       body: JSON.stringify({
         model,
@@ -69,7 +73,8 @@ export const getDailyInsight = async (context?: InsightContext): Promise<DailyIn
     });
 
     if (!response.ok) {
-      throw new Error(`OpenRouter error: ${response.status}`);
+      const details = await response.text().catch(() => '');
+      throw new Error(`OpenRouter error: ${response.status} ${details}`.trim());
     }
 
     const data = (await response.json()) as {
@@ -77,20 +82,26 @@ export const getDailyInsight = async (context?: InsightContext): Promise<DailyIn
     };
 
     const text = data.choices?.[0]?.message?.content?.trim();
+    if (!text) {
+      throw new Error('OpenRouter returned empty response');
+    }
 
     const result: DailyInsight = {
-      text: text || 'AI insight is unavailable right now.',
+      text,
       generatedAt: new Date().toISOString(),
-      source: text ? 'ai' : 'fallback'
+      source: 'ai'
     };
 
     cache.set(cacheKey, result, INSIGHT_TTL_MS);
     return result;
   } catch (error) {
-    return {
+    console.error('AI insight error:', error);
+    const fallback: DailyInsight = {
       text: 'AI insight is unavailable right now.',
       generatedAt: new Date().toISOString(),
       source: 'fallback'
     };
+    cache.set(cacheKey, fallback, FALLBACK_TTL_MS);
+    return fallback;
   }
 };
