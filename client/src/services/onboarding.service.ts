@@ -1,9 +1,8 @@
 import type { OnboardingAnswers } from '../types/onboarding';
+import { API_URL } from '../config/api';
 import { getAuthToken } from './auth.service';
 
 const COMPLETE_KEY = 'onboardingComplete';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
-
 const authHeaders = (): HeadersInit => {
   const token = getAuthToken();
   if (!token) {

@@ -10,6 +10,24 @@ type PriceResponse = {
   };
 };
 
+type RedditListing = {
+  data?: {
+    children?: Array<{
+      data?: {
+        title?: string;
+        url?: string;
+        url_overridden_by_dest?: string;
+        over_18?: boolean;
+        preview?: {
+          images?: Array<{
+            source?: { url?: string };
+          }>;
+        };
+      };
+    }>;
+  };
+};
+
 type CoinCapResponse = {
   data: Array<{
     id: string;
@@ -29,6 +47,7 @@ type NewsItem = {
 const COINGECKO_URL = 'https://api.coingecko.com/api/v3';
 const COINCAP_URL = 'https://api.coincap.io/v2';
 const CRYPTOPANIC_URL = 'https://cryptopanic.com/api/developer/v2/posts/';
+const REDDIT_URL = 'https://www.reddit.com/r/cryptomemes/top.json?limit=30&t=day&raw_json=1';
 
 const cache = new Cache<any>();
 let lastPrices: Array<{ symbol: string; price: number | null; change24h: number | null }> | null =
@@ -50,8 +69,8 @@ const fallbackNews: NewsItem[] = [
   }
 ];
 
-const fetchJson = async <T>(url: string): Promise<T> => {
-  const res = await fetch(url);
+const fetchJson = async <T>(url: string, init?: RequestInit): Promise<T> => {
+  const res = await fetch(url, init);
   if (!res.ok) {
     throw new AppError(`External API error: ${res.status}`, 502);
   }
@@ -64,6 +83,15 @@ const mapCoinCapPrices = (payload: CoinCapResponse) =>
     price: Number(item.priceUsd),
     change24h: Number(item.changePercent24Hr)
   }));
+
+const sanitizeUrl = (value?: string) => (value ? value.replace(/&amp;/g, '&') : '');
+
+const isAllowedHost = (url: string) =>
+  url.includes('i.redd.it') || url.includes('preview.redd.it');
+
+const isImageUrl = (url: string) => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url);
+
+const pickRandom = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
 export const getPrices = async () => {
   const cached = cache.get('prices');
@@ -161,6 +189,31 @@ export const getNews = async (): Promise<NewsItem[]> => {
 };
 
 export const getMeme = async (): Promise<Meme> => {
+  try {
+    const data = await fetchJson<RedditListing>(REDDIT_URL, {
+      headers: {
+        'User-Agent': 'AI-Crypto-Advisor/1.0'
+      }
+    });
+
+    const posts =
+      data.data?.children
+        ?.map((child) => child.data)
+        .filter((post) => post && !post.over_18)
+        .map((post) => ({
+          title: post?.title || 'Crypto Meme',
+          url: sanitizeUrl(post?.preview?.images?.[0]?.source?.url) || sanitizeUrl(post?.url_overridden_by_dest) || ''
+        }))
+        .filter((post) => post.url && isAllowedHost(post.url) && isImageUrl(post.url)) || [];
+
+    if (posts.length > 0) {
+      const picked = pickRandom(posts);
+      return { title: picked.title, url: picked.url, source: 'reddit' };
+    }
+  } catch {
+    // fall back to static memes
+  }
+
   const index = Math.floor(Math.random() * memes.length);
   return memes[index];
 };

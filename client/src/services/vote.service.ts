@@ -1,6 +1,5 @@
+import { API_URL } from '../config/api';
 import { getAuthToken } from './auth.service';
-
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 export type VoteInput = {
   source: 'insight' | 'news' | 'meme' | 'prices';

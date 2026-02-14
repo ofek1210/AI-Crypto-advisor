@@ -1,3 +1,5 @@
+import { API_URL } from '../config/api';
+
 export type RegisterInput = {
   name: string;
   email: string;
@@ -21,7 +23,6 @@ type AuthResponse = {
 const TOKEN_KEY = 'authToken';
 const USER_KEY = 'authUser';
 const NEW_USER_KEY = 'isNewUser';
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
 
 const saveToken = (token: string) => {
   localStorage.setItem(TOKEN_KEY, token);

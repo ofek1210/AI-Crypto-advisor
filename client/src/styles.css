@@ -194,8 +194,39 @@ body {
 
 .vote-actions {
   display: flex;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.vote-button {
+  border: 1px solid transparent;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 12px;
+  cursor: pointer;
+  background: #e2e8f0;
+  color: #0f172a;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vote-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.vote-button.active.up {
+  background: #dcfce7;
+  color: #166534;
+  border-color: #22c55e;
+}
+
+.vote-button.active.down {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #ef4444;
 }
 
 .prices-grid {

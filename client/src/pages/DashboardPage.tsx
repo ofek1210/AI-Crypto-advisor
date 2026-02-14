@@ -1,14 +1,21 @@
 import { useEffect, useState } from 'react';
-import {
-  getDashboardSummary,
-  type DashboardSummary
-} from '../services/dashboard.service';
+import { getDashboardSummary } from '../services/dashboard.service';
 import { getDailyInsight, type DailyInsight } from '../services/insight.service';
 import { submitVote } from '../services/vote.service';
 import { fetchOnboardingStatus } from '../services/onboarding.service';
 import { clearNewUserFlag, isNewUser } from '../services/auth.service';
 import { useAuth } from '../hooks/useAuth';
 import type { OnboardingAnswers } from '../types/onboarding';
+import type { DashboardSummary } from '../types/dashboard';
+import {
+  PRICE_META,
+  filterNewsByPreferences,
+  filterPricesByPreference,
+  formatChange,
+  formatPrice,
+  getFeaturedSymbol,
+  splitFeaturedPrices
+} from '../utils/dashboard';
 
 const DashboardPage = () => {
   const [data, setData] = useState<DashboardSummary | null>(null);
@@ -17,30 +24,9 @@ const DashboardPage = () => {
   const [insightError, setInsightError] = useState('');
   const [preferences, setPreferences] = useState<OnboardingAnswers | null>(null);
   const [voteStatus, setVoteStatus] = useState<Record<string, string>>({});
+  const [voteSelection, setVoteSelection] = useState<Record<string, 'up' | 'down'>>({});
   const { user, logout } = useAuth();
   const [welcomeMessage, setWelcomeMessage] = useState('');
-  const priceMeta: Record<
-    string,
-    { name: string; logo: string }
-  > = {
-    BTC: {
-      name: 'Bitcoin',
-      logo: 'https://assets.coingecko.com/coins/images/1/small/bitcoin.png'
-    },
-    ETH: {
-      name: 'Ethereum',
-      logo: 'https://assets.coingecko.com/coins/images/279/small/ethereum.png'
-    },
-    SOL: {
-      name: 'Solana',
-      logo: 'https://assets.coingecko.com/coins/images/4128/small/solana.png'
-    },
-    USDT: {
-      name: 'Tether',
-      logo: 'https://assets.coingecko.com/coins/images/325/small/Tether.png'
-    }
-  };
-
   useEffect(() => {
     const load = async () => {
       try {
@@ -96,6 +82,7 @@ const DashboardPage = () => {
 
   const handleVote = async (source: 'insight' | 'news' | 'meme' | 'prices', value: 'up' | 'down') => {
     setVoteStatus((prev) => ({ ...prev, [source]: '' }));
+    setVoteSelection((prev) => ({ ...prev, [source]: value }));
     try {
       await submitVote({ source, value });
       setVoteStatus((prev) => ({
@@ -108,82 +95,29 @@ const DashboardPage = () => {
     }
   };
 
-  const filteredPrices = data?.prices.filter((item) => {
-    const interest = preferences?.assetInterests;
-    if (!interest) return true;
-    if (interest === 'btc') return item.symbol === 'BTC';
-    if (interest === 'eth') return item.symbol === 'ETH';
-    if (interest === 'alts') return item.symbol === 'SOL';
-    if (interest === 'stable') return item.symbol === 'USDT';
-    if (interest === 'nft') return item.symbol === 'ETH';
-    return true;
-  });
-  const visiblePrices =
-    filteredPrices && filteredPrices.length > 0 ? filteredPrices : data?.prices || [];
+  const visiblePrices = data
+    ? filterPricesByPreference(data.prices, preferences)
+    : [];
+  const featuredSymbol = getFeaturedSymbol(preferences);
+  const { featured: featuredPrice, remaining: remainingPrices } = splitFeaturedPrices(
+    visiblePrices,
+    featuredSymbol
+  );
+  const visibleNews = data ? filterNewsByPreferences(data.news, preferences) : [];
 
-  const featuredSymbol =
-    preferences?.assetInterests === 'btc'
-      ? 'BTC'
-      : preferences?.assetInterests === 'eth'
-      ? 'ETH'
-      : preferences?.assetInterests === 'alts'
-      ? 'SOL'
-      : preferences?.assetInterests === 'stable'
-      ? 'USDT'
-      : null;
+  const ThumbUpIcon = () => (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M2 10.5a1.5 1.5 0 0 1 1.5-1.5h3.082a.5.5 0 0 0 .39-.188l3.318-4.14A1.5 1.5 0 0 1 11.48 4H12a1 1 0 0 1 1 1v3.5a.5.5 0 0 0 .5.5h2.188a1.5 1.5 0 0 1 1.468 1.83l-1.2 5.4A1.5 1.5 0 0 1 14.49 17H7a1 1 0 0 1-1-1v-4H3.5A1.5 1.5 0 0 1 2 10.5Z" />
+      <path d="M6 12v4H3.5A1.5 1.5 0 0 1 2 14.5v-3A1.5 1.5 0 0 1 3.5 10H6v2Z" />
+    </svg>
+  );
 
-  const featuredPrice = featuredSymbol
-    ? visiblePrices.find((item) => item.symbol === featuredSymbol)
-    : undefined;
-
-  const remainingPrices = featuredPrice
-    ? visiblePrices.filter((item) => item.symbol !== featuredPrice.symbol)
-    : visiblePrices;
-
-  const formatPrice = (value: number | null) => {
-    if (value === null) return '—';
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      maximumFractionDigits: value >= 1 ? 2 : 4
-    }).format(value);
-  };
-
-  const formatChange = (value: number | null) => {
-    if (value === null) return '—';
-    const sign = value > 0 ? '+' : '';
-    return `${sign}${value.toFixed(2)}%`;
-  };
-
-  const buildNewsFilter = () => {
-    const keywords: string[] = [];
-    if (preferences?.assetInterests === 'btc') keywords.push('bitcoin', 'btc');
-    if (preferences?.assetInterests === 'eth') keywords.push('ethereum', 'eth');
-    if (preferences?.assetInterests === 'alts') keywords.push('altcoin', 'alts', 'solana', 'sol');
-    if (preferences?.assetInterests === 'stable') keywords.push('stable', 'usdt', 'tether');
-    if (preferences?.assetInterests === 'nft') keywords.push('nft', 'opensea');
-
-    if (preferences?.investorType === 'day_trader') keywords.push('trader', 'trading');
-    if (preferences?.investorType === 'hodler') keywords.push('hold', 'hodl');
-    if (preferences?.investorType === 'nft_collector') keywords.push('nft');
-    if (preferences?.investorType === 'defi') keywords.push('defi');
-
-    if (preferences?.contentType === 'charts') keywords.push('chart', 'technical');
-    if (preferences?.contentType === 'social') keywords.push('twitter', 'x', 'reddit');
-    if (preferences?.contentType === 'market_news') keywords.push('market', 'macro');
-    if (preferences?.contentType === 'fun') keywords.push('meme');
-
-    return keywords;
-  };
-
-  const newsKeywords = buildNewsFilter();
-  const filteredNews =
-    newsKeywords.length === 0
-      ? data?.news || []
-      : (data?.news || []).filter((item) =>
-          newsKeywords.some((keyword) => item.title.toLowerCase().includes(keyword))
-        );
-  const visibleNews = filteredNews.length > 0 ? filteredNews : data?.news || [];
+  const ThumbDownIcon = () => (
+    <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+      <path d="M18 9.5A1.5 1.5 0 0 1 16.5 11H13.418a.5.5 0 0 0-.39.188l-3.318 4.14A1.5 1.5 0 0 1 8.52 16H8a1 1 0 0 1-1-1v-3.5a.5.5 0 0 0-.5-.5H4.312a1.5 1.5 0 0 1-1.468-1.83l1.2-5.4A1.5 1.5 0 0 1 5.51 3H13a1 1 0 0 1 1 1v4h2.5A1.5 1.5 0 0 1 18 9.5Z" />
+      <path d="M14 8V4h2.5A1.5 1.5 0 0 1 18 5.5v3A1.5 1.5 0 0 1 16.5 10H14V8Z" />
+    </svg>
+  );
 
   return (
     <section className="page">
@@ -217,11 +151,11 @@ const DashboardPage = () => {
                 <div className="price-card-top">
                   <img
                     className="price-logo"
-                    src={priceMeta[featuredPrice.symbol]?.logo}
-                    alt={priceMeta[featuredPrice.symbol]?.name}
+                    src={PRICE_META[featuredPrice.symbol]?.logo}
+                    alt={PRICE_META[featuredPrice.symbol]?.name}
                   />
                   <div>
-                    <div className="price-name">{priceMeta[featuredPrice.symbol]?.name}</div>
+                    <div className="price-name">{PRICE_META[featuredPrice.symbol]?.name}</div>
                     <div className="price-symbol">{featuredPrice.symbol}</div>
                   </div>
                 </div>
@@ -241,7 +175,7 @@ const DashboardPage = () => {
             )}
             <div className="prices-grid">
               {remainingPrices.map((item, index) => {
-                const meta = priceMeta[item.symbol] || { name: item.symbol, logo: '' };
+                const meta = PRICE_META[item.symbol] || { name: item.symbol, logo: '' };
                 const changeClass =
                   item.change24h === null
                     ? 'neutral'
@@ -271,10 +205,18 @@ const DashboardPage = () => {
               })}
             </div>
             <div className="vote-actions">
-              <button className="secondary" onClick={() => handleVote('prices', 'up')}>
+              <button
+                className={`vote-button ${voteSelection.prices === 'up' ? 'active up' : ''}`}
+                onClick={() => handleVote('prices', 'up')}
+              >
+                <ThumbUpIcon />
                 Helpful
               </button>
-              <button className="secondary" onClick={() => handleVote('prices', 'down')}>
+              <button
+                className={`vote-button ${voteSelection.prices === 'down' ? 'active down' : ''}`}
+                onClick={() => handleVote('prices', 'down')}
+              >
+                <ThumbDownIcon />
                 Not helpful
               </button>
             </div>
@@ -298,10 +240,18 @@ const DashboardPage = () => {
               </ul>
             )}
             <div className="vote-actions">
-              <button className="secondary" onClick={() => handleVote('news', 'up')}>
+              <button
+                className={`vote-button ${voteSelection.news === 'up' ? 'active up' : ''}`}
+                onClick={() => handleVote('news', 'up')}
+              >
+                <ThumbUpIcon />
                 Helpful
               </button>
-              <button className="secondary" onClick={() => handleVote('news', 'down')}>
+              <button
+                className={`vote-button ${voteSelection.news === 'down' ? 'active down' : ''}`}
+                onClick={() => handleVote('news', 'down')}
+              >
+                <ThumbDownIcon />
                 Not helpful
               </button>
             </div>
@@ -314,10 +264,18 @@ const DashboardPage = () => {
             {!insight && !insightError && <p>Loading insight...</p>}
             {insight && <p>{insight.text}</p>}
             <div className="vote-actions">
-              <button className="secondary" onClick={() => handleVote('insight', 'up')}>
+              <button
+                className={`vote-button ${voteSelection.insight === 'up' ? 'active up' : ''}`}
+                onClick={() => handleVote('insight', 'up')}
+              >
+                <ThumbUpIcon />
                 Helpful
               </button>
-              <button className="secondary" onClick={() => handleVote('insight', 'down')}>
+              <button
+                className={`vote-button ${voteSelection.insight === 'down' ? 'active down' : ''}`}
+                onClick={() => handleVote('insight', 'down')}
+              >
+                <ThumbDownIcon />
                 Not helpful
               </button>
             </div>
@@ -327,12 +285,26 @@ const DashboardPage = () => {
           <div className="card">
             <h2>Meme</h2>
             <p>{data.meme.title}</p>
-            <img className="meme" src={data.meme.url} alt={data.meme.title} />
+            <img
+              className="meme"
+              src={data.meme.url}
+              alt={data.meme.title}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+            />
             <div className="vote-actions">
-              <button className="secondary" onClick={() => handleVote('meme', 'up')}>
+              <button
+                className={`vote-button ${voteSelection.meme === 'up' ? 'active up' : ''}`}
+                onClick={() => handleVote('meme', 'up')}
+              >
+                <ThumbUpIcon />
                 Helpful
               </button>
-              <button className="secondary" onClick={() => handleVote('meme', 'down')}>
+              <button
+                className={`vote-button ${voteSelection.meme === 'down' ? 'active down' : ''}`}
+                onClick={() => handleVote('meme', 'down')}
+              >
+                <ThumbDownIcon />
                 Not helpful
               </button>
             </div>
