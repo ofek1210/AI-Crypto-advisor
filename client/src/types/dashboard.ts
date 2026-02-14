@@ -19,6 +19,7 @@ export type MemeItem = {
 
 export type DashboardSummary = {
   prices: PriceItem[];
+  pricesSource?: string;
   news: NewsItem[];
   meme: MemeItem;
 };

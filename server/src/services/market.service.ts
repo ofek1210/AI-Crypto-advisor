@@ -49,9 +49,12 @@ const COINCAP_URL = 'https://api.coincap.io/v2';
 const CRYPTOPANIC_URL = 'https://cryptopanic.com/api/developer/v2/posts/';
 const REDDIT_URL = 'https://www.reddit.com/r/cryptomemes/top.json?limit=30&t=day&raw_json=1';
 
+type PriceItem = { symbol: string; price: number | null; change24h: number | null };
+type PriceSource = 'coingecko' | 'coincap' | 'last_known' | 'fallback' | 'cache';
+export type PriceResult = { items: PriceItem[]; source: PriceSource };
+
 const cache = new Cache<any>();
-let lastPrices: Array<{ symbol: string; price: number | null; change24h: number | null }> | null =
-  null;
+let lastPrices: PriceItem[] | null = null;
 let lastNews: NewsItem[] | null = null;
 
 const fallbackNews: NewsItem[] = [
@@ -93,12 +96,17 @@ const isImageUrl = (url: string) => /\.(png|jpe?g|gif|webp)(\?.*)?$/i.test(url);
 
 const pickRandom = <T>(items: T[]) => items[Math.floor(Math.random() * items.length)];
 
-export const getPrices = async () => {
+export const getPrices = async (): Promise<PriceResult> => {
   const disableCache = env.DISABLE_PRICE_CACHE === 'true';
   if (!disableCache) {
     const cached = cache.get('prices');
-    if (cached && !(Array.isArray(cached) && cached.length === 0)) {
-      return cached;
+    if (cached) {
+      if (Array.isArray(cached)) {
+        return { items: cached, source: 'cache' };
+      }
+      if (cached.items && Array.isArray(cached.items)) {
+        return cached as PriceResult;
+      }
     }
   }
 
@@ -115,7 +123,7 @@ export const getPrices = async () => {
     const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
     const data = await fetchJson<PriceResponse>(url, { headers: coingeckoHeaders });
 
-    const result = [
+    const result: PriceItem[] = [
       {
         symbol: 'BTC',
         price: data.bitcoin?.usd ?? null,
@@ -138,43 +146,47 @@ export const getPrices = async () => {
       }
     ];
 
+    const payload: PriceResult = { items: result, source: 'coingecko' };
     lastPrices = result;
     if (!disableCache) {
-      cache.set('prices', result, 5 * 60 * 1000);
+      cache.set('prices', payload, 5 * 60 * 1000);
     }
-    return result;
+    return payload;
   } catch (err) {
     console.error('CoinGecko error:', err);
     try {
       const url = `${COINCAP_URL}/assets?ids=bitcoin,ethereum,solana,tether`;
       const data = await fetchJson<CoinCapResponse>(url);
       const result = mapCoinCapPrices(data);
+      const payload: PriceResult = { items: result, source: 'coincap' };
       lastPrices = result;
       if (!disableCache) {
-        cache.set('prices', result, 5 * 60 * 1000);
+        cache.set('prices', payload, 5 * 60 * 1000);
       }
-      return result;
+      return payload;
     } catch (err2) {
       console.error('CoinCap error:', err2);
       // fall through to last-known or static fallback
     }
 
     if (lastPrices && lastPrices.length > 0) {
+      const payload: PriceResult = { items: lastPrices, source: 'last_known' };
       if (!disableCache) {
-        cache.set('prices', lastPrices, 2 * 60 * 1000);
+        cache.set('prices', payload, 2 * 60 * 1000);
       }
-      return lastPrices;
+      return payload;
     }
-    const fallback = [
+    const fallback: PriceItem[] = [
       { symbol: 'BTC', price: 30000, change24h: 0 },
       { symbol: 'ETH', price: 1800, change24h: 0 },
       { symbol: 'SOL', price: 120, change24h: 0 },
       { symbol: 'USDT', price: 1, change24h: 0 }
     ];
+    const payload: PriceResult = { items: fallback, source: 'fallback' };
     if (!disableCache) {
-      cache.set('prices', fallback, 2 * 60 * 1000);
+      cache.set('prices', payload, 2 * 60 * 1000);
     }
-    return fallback;
+    return payload;
   }
 };
 

@@ -1,16 +1,16 @@
 import * as marketService from './market.service.js';
 import { memes, type Meme } from '../utils/memes.js';
 
-type PriceItem = { symbol: string; price: number | null; change24h: number | null };
 type NewsItem = { title: string; url: string; source: string; publishedAt: string };
 
 export type DashboardSummary = {
-  prices: PriceItem[];
+  prices: Array<{ symbol: string; price: number | null; change24h: number | null }>;
+  pricesSource?: string;
   news: NewsItem[];
   meme: Meme;
 };
 
-const fallbackPrices: PriceItem[] = [
+const fallbackPrices = [
   { symbol: 'BTC', price: null, change24h: null },
   { symbol: 'ETH', price: null, change24h: null },
   { symbol: 'SOL', price: null, change24h: null }
@@ -36,9 +36,14 @@ export const getDashboardSummary = async (): Promise<DashboardSummary> => {
     console.error('Dashboard meme error:', memeResult.reason);
   }
 
-  const prices = pricesResult.status === 'fulfilled' ? pricesResult.value : fallbackPrices;
+  const pricesPayload =
+    pricesResult.status === 'fulfilled'
+      ? pricesResult.value
+      : { items: fallbackPrices, source: 'fallback' };
+  const prices = pricesPayload.items;
+  const pricesSource = pricesPayload.source;
   const news = newsResult.status === 'fulfilled' ? newsResult.value : [];
   const meme = memeResult.status === 'fulfilled' ? memeResult.value : fallbackMeme;
 
-  return { prices, news, meme };
+  return { prices, pricesSource, news, meme };
 };
