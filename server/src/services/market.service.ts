@@ -101,7 +101,9 @@ export const getPrices = async () => {
 
   try {
     const url = `${COINGECKO_URL}/simple/price?ids=bitcoin,ethereum,solana,tether&vs_currencies=usd&include_24hr_change=true`;
-    const data = await fetchJson<PriceResponse>(url);
+    const data = await fetchJson<PriceResponse>(url, {
+      headers: env.COINGECKO_API_KEY ? { 'x-cg-pro-api-key': env.COINGECKO_API_KEY } : undefined
+    });
 
     const result = [
       {
